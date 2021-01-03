@@ -14,7 +14,6 @@ public class Server implements Runnable{
     Scanner scanner = new Scanner(System.in);
 
     private List<Client> clients = new ArrayList<Client>();
-    private List<Integer> responses = new ArrayList<Integer>();
     private int MAX_ATTEMPTS = 5;
 
     private int port;
@@ -32,31 +31,34 @@ public class Server implements Runnable{
             return;
         }
         server = new Thread(this, "Server: " + port);
-        server.start();
+        server.start(); // Start Server.run()
     }
 
     public void run() {
         isRunning = true;
         System.out.println("Started Text/Server on port: " + port);
+
         receive = new Thread(() -> receive(), "Server/Listen");
-        receive.start();
+        receive.start(); // Start Server.receive()
         manage = new Thread(() -> manage(), "Server/Manage");
-        manage.start();
-        while (isRunning) {
-            String line = scanner.nextLine();
-            if (!line.startsWith("/")) {
-                sendAll("/m/Server: " + line);
+        manage.start(); // Start Server.manage()
+
+        while (isRunning) { // Repeats
+            String line = scanner.nextLine(); // Read Console
+            if (!line.startsWith("/")) { // Is it a Message?
+                String message = "TEXT;" + line + ";";
+                sendAll(message);
             }
-            line = line.substring(1);
-            if(line.startsWith("clients")) {
+            line = line.substring(1); // Get Command (Remove Prefix)
+            // Commands Below:
+            if(line.startsWith("clients")) { // Get Clients
                 System.out.print("Clients: ");
-                for(int i = 0; i < clients.size(); i++) {
-                    if(i + 1 < clients.size()) {
-                        System.out.print(clients.get(i).name);
-                    } else { System.out.print(clients.get(i).name + ", "); }
+                for(int i = 0; i < clients.size() - 1; i++) {
+                    System.out.print(clients.get(i).name + ", ");
                 }
+                System.out.print(clients.get(i).name);
             }
-            if(line.startsWith("stop")) {
+            if(line.startsWith("stop")) { // Stop
                 stop();
             }
         }
@@ -105,6 +107,7 @@ public class Server implements Runnable{
         InetAddress address = packet.getAddress();
         int port = packet.getPort();
         String text = new String(data);
+        // TODO: Change Process To Use HEX
         if(text.startsWith("/c/")) {
             String name = text.split("/c/")[1];
             int UUID = clients.size(); // TODO: FIX THIS
@@ -123,6 +126,7 @@ public class Server implements Runnable{
             return;
         }
         if(text.startsWith("/i/")) {
+            System.out.println(text);
             responses.add(Integer.parseInt(text.split("/i/")[1]));
             return;
         }
@@ -157,7 +161,7 @@ public class Server implements Runnable{
         }
     }
 
-    public void stop() {
+    public void stop() { // Disconnect All Clients & Terminate Application
         for(int i = 0; i < clients.size(); i++) {
             disconnect(clients.get(i).UUID, true);
         }
@@ -165,7 +169,7 @@ public class Server implements Runnable{
         socket.close();
     }
 
-    public void disconnect(int UUID, boolean status) {
+    public void disconnect(int UUID, boolean status) { // Disconnect a Client
         Client client = null;
         for(int i = 0; i < clients.size(); i++) {
             if(clients.get(i).UUID == UUID) {

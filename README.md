@@ -1,12 +1,8 @@
 # Text-Server
 
 ### Message
-Message: TEXT;[MESSAGE];
+Message: MESSAGE;NAME,[NAME];MESSAGE,[MESSAGE];
 
-Command: 0x01;0x01;...
+Connection: CONNECT;NAME,[NAME];
 
-0x01: Connection Attempt
-
-0x02: Ping
-
-0x03: Disconnect
+Disconnect: DISCONNECT;

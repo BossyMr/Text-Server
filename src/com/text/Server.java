@@ -1,90 +1,60 @@
 package com.text;
 
+import com.text.commands.*;
+
 import java.io.IOException;
-import java.lang.reflect.Array;
-import java.net.DatagramPacket;
-import java.net.DatagramSocket;
-import java.net.InetAddress;
-import java.net.SocketException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Scanner;
+import java.net.*;
+import java.util.*;
 
 public class Server implements Runnable{
     Scanner scanner = new Scanner(System.in);
 
-    private List<Client> clients = new ArrayList<Client>();
-    private int MAX_ATTEMPTS = 5;
+    private final List<Client> clients = new ArrayList<>();
 
-    private int port;
+    private final int port;
     private DatagramSocket socket;
 
-    private Thread server, receive, manage;
+    private Thread server, receive;
     private boolean isRunning;
 
     public Server(int port) {
         this.port = port;
         try {
-            socket = new DatagramSocket(port);
+            socket = new DatagramSocket(this.port);
         } catch (SocketException e) {
             e.printStackTrace();
             return;
         }
-        server = new Thread(this, "Server: " + port);
-        server.start(); // Start Server.run()
-    }
-
-    public void run() {
         isRunning = true;
         System.out.println("Started Text/Server on port: " + port);
 
-        receive = new Thread(() -> receive(), "Server/Listen");
-        receive.start(); // Start Server.receive()
-        manage = new Thread(() -> manage(), "Server/Manage");
-        manage.start(); // Start Server.manage()
-
-        while (isRunning) { // Repeats
-            String line = scanner.nextLine(); // Read Console
-            if (!line.startsWith("/")) { // Is it a Message?
-                String message = "TEXT;" + line + ";";
-                sendAll(message);
-            }
-            line = line.substring(1); // Get Command (Remove Prefix)
-            // Commands Below:
-            if(line.startsWith("clients")) { // Get Clients
-                System.out.print("Clients: ");
-                for(int i = 0; i < clients.size() - 1; i++) {
-                    System.out.print(clients.get(i).name + ", ");
-                }
-                System.out.print(clients.get(i).name);
-            }
-            if(line.startsWith("stop")) { // Stop
-                stop();
-            }
-        }
+        server = new Thread(this, "Server: " + port);
+        server.start();
+        receive = new Thread(this::receive, "Server/Listen");
+        receive.start();
     }
 
-    public void manage() {
-        while(isRunning) {
-            sendAll("/ir/");
-            sendStatus();
-            try {
-                Thread.sleep(2000);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
+    public void run() {
+        while (isRunning) {
+            String line = scanner.nextLine();
+            if (!line.startsWith("/")) {
+                Command message = new Command("MESSAGE");
+                message.addField(new Field("NAME", "SERVER"));
+                message.addField(new Field("MESSAGE", line));
+                sendAll(Command.deserialize(message).getBytes());
             }
-            for (int i = 0; i < clients.size(); i++) {
-                Client client = clients.get(i);
-                if (!clients.contains(client.UUID)) {
-                    if (client.attempts >= MAX_ATTEMPTS) {
-                        disconnect(client.UUID, false);
-                    } else {
-                        client.attempts++;
+            line = line.substring(1);
+            switch(line.split(" ")[0]) {
+                case "clients":
+                    System.out.print("Clients: ");
+                    for (int i = 0; i < clients.size() - 1; i++) {
+                        System.out.print(clients.get(i).getName() + ", ");
                     }
-                } else {
-                    responses.remove(new Integer(client.UUID));
-                    client.attempts = 0;
-                }
+                    System.out.print(clients.get(clients.size() - 1).getName());
+                    break;
+                case "stop":
+                    stop();
+                    break;
             }
         }
     }
@@ -107,28 +77,40 @@ public class Server implements Runnable{
         InetAddress address = packet.getAddress();
         int port = packet.getPort();
         String text = new String(data);
-        // TODO: Change Process To Use HEX
-        if(text.startsWith("/c/")) {
-            String name = text.split("/c/")[1];
-            int UUID = clients.size(); // TODO: FIX THIS
-            clients.add(new Client(name, address, port, UUID));
-            System.out.println("UUID: " + UUID + ", Name: " + name + " Connected on: " + address.toString() + ":" + port);
-            String message = "/cr/" + UUID;
-            send(message.getBytes(), address, port);
-            return;
+        if(new String(data, 0,4).equals("TEXT")) {
+            Command command = Command.serialize(text);
+            assert command != null;
+            if(command.getName().equals("MESSAGE")) {
+                Command message = new Command("MESSAGE");
+                message.addField(new Field("NAME", command.getField("NAME").getValue()));
+                message.addField(new Field("MESSAGE", command.getField("MESSAGE").getValue()));
+                sendAll(Command.deserialize(message).getBytes());
+            } else {
+                switch(command.getName()) {
+                    case "CONNECT":
+                        for(Client client : clients) {
+                            if(client.getAddress().equals(address)) {
+                                break;
+                            }
+                        }
+                        clients.add(new Client(command.getField("NAME").getValue(), address, port));
+                        break;
+                    case "DISCONNECT":
+                        for(Client client : clients) {
+                            if(client.getAddress().equals(address)) {
+                                disconnect(client, true);
+                                break;
+                            }
+                        }
+                        break;
+                }
+            }
         }
-        if(text.startsWith("/d/")) {
-            String UUID = text.split("/d/")[1];
-            disconnect(Integer.parseInt(UUID), true);
-        }
-        if(text.startsWith("/m/")) {
-            sendAll(text);
-            return;
-        }
-        if(text.startsWith("/i/")) {
-            System.out.println(text);
-            responses.add(Integer.parseInt(text.split("/i/")[1]));
-            return;
+    }
+
+    public void sendAll(byte[] data) {
+        for (Client client : clients) {
+            send(data, client.getAddress(), client.getPort());
         }
     }
 
@@ -141,45 +123,19 @@ public class Server implements Runnable{
         }
     }
 
-    public void sendStatus() {
-        if(clients.size() <= 0) return;
-        String users = "/u/";
-        for (int i = 0; i < clients.size(); i++) {
-            users += clients.get(i).name + ";";
-        }
-        sendAll(users);
-    }
-
-    public void sendAll(String text) {
-        if (text.startsWith("/m/")) {
-            String message = text.substring(3);
-            System.out.println(message);
-        }
-        for (int i = 0; i < clients.size(); i++) {
-            Client client = clients.get(i);
-            send(text.getBytes(), client.address, client.port);
-        }
-    }
-
-    public void stop() { // Disconnect All Clients & Terminate Application
-        for(int i = 0; i < clients.size(); i++) {
-            disconnect(clients.get(i).UUID, true);
+    public void stop() {
+        for (Client client : clients) {
+            disconnect(client, true);
         }
         isRunning = false;
         socket.close();
     }
 
-    public void disconnect(int UUID, boolean status) { // Disconnect a Client
-        Client client = null;
-        for(int i = 0; i < clients.size(); i++) {
-            if(clients.get(i).UUID == UUID) {
-                client = clients.get(i);
-                clients.remove(client);
-                String message = "Client " + client.name + " (" + client.UUID + ") @ " + client.address.toString() + ":" + client.port;
-                if(status) { message += " disconnected."; }
-                else { message += " timed out."; }
-                return;
-            }
-        }
+    public void disconnect(Client client, boolean status) {
+        clients.remove(client);
+        String message = "Client " + client.getName() + " @ " + client.getAddress().toString() + ":" + client.getPort();
+        if(status) { message += " disconnected."; }
+        else { message += " timed out."; }
+        System.out.println(message);
     }
 }

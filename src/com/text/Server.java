@@ -37,6 +37,7 @@ public class Server implements Runnable{
     public void run() {
         while (isRunning) {
             String line = scanner.nextLine();
+            if(line.trim().isEmpty()) return;
             if (!line.startsWith("/")) {
                 Command message = new Command("MESSAGE");
                 message.addField(new Field("NAME", "SERVER"));
@@ -50,7 +51,7 @@ public class Server implements Runnable{
                     for (int i = 0; i < clients.size() - 1; i++) {
                         System.out.print(clients.get(i).getName() + ", ");
                     }
-                    System.out.print(clients.get(clients.size() - 1).getName());
+                    System.out.println(clients.get(clients.size() - 1).getName());
                     break;
                 case "stop":
                     stop();
@@ -94,6 +95,7 @@ public class Server implements Runnable{
                             }
                         }
                         clients.add(new Client(command.getField("NAME").getValue(), address, port));
+                        System.out.println("Client " + command.getField("NAME") + " @ " + address.getHostAddress() + ":" + port + " connected.");
                         break;
                     case "DISCONNECT":
                         for(Client client : clients) {
@@ -124,6 +126,7 @@ public class Server implements Runnable{
     }
 
     public void stop() {
+        System.out.println("Stopped Text/Server");
         for (Client client : clients) {
             disconnect(client, true);
         }
@@ -133,7 +136,7 @@ public class Server implements Runnable{
 
     public void disconnect(Client client, boolean status) {
         clients.remove(client);
-        String message = "Client " + client.getName() + " @ " + client.getAddress().toString() + ":" + client.getPort();
+        String message = "Client " + client.getName() + " @ " + client.getAddress().getHostAddress() + ":" + client.getPort();
         if(status) { message += " disconnected."; }
         else { message += " timed out."; }
         System.out.println(message);

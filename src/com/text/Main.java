@@ -2,7 +2,7 @@ package com.text;
 
 public class Main {
 
-    private final String version = "v0.1-alpha";
+    private final String version = "v0.1.1-alpha";
     private final int port;
     private final Server server;
 

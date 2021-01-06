@@ -48,7 +48,7 @@ public class Command {
         text = text.substring(4);
         String[] data = text.split(";");
         Command command = new Command(data[0]);
-        for(int i = 1; i < data.length; i++) {
+        for(int i = 1; i < data.length - 1; i++) {
             command.addField(Field.serialize(data[i]));
         }
         return command;

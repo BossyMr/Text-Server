@@ -1,8 +1,14 @@
 # Text-Server
 
 ### Message
-Message: MESSAGE;NAME,[NAME];MESSAGE,[MESSAGE];
+Message to Server: MESSAGE;MESSAGE,[MESSAGE];
 
-Connection: CONNECT;NAME,[NAME];
+Message to Client: MESSAGE;MESSAGE,[MESSAGE];NAME,[NAME];
+
+Connection: CONNECT;
 
 Disconnect: DISCONNECT;
+
+Change Name: NAME;NAME,[NAME];
+
+Active: ACTIVE;

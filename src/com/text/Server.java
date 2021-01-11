@@ -11,6 +11,9 @@ public class Server implements Runnable{
 
     private final List<Client> clients = new ArrayList<>();
 
+    private final List<InetAddress> responses = new ArrayList<>();
+    private final int MAX_ATTEMPTS = 5;
+
     private final int port;
     private DatagramSocket socket;
 
@@ -35,28 +38,62 @@ public class Server implements Runnable{
     }
 
     public void run() {
+        long lastTime = System.nanoTime();
+        long timer = System.currentTimeMillis();
+        final double ns = 1000000000.0 / 60.0;
+        double delta = 0;
         while (isRunning) {
-            String line = scanner.nextLine();
-            if(line.trim().isEmpty()) return;
-            if (!line.startsWith("/")) {
-                Command message = new Command("MESSAGE");
-                message.addField(new Field("NAME", "SERVER"));
-                message.addField(new Field("MESSAGE", line));
-                sendAll(Command.deserialize(message).getBytes());
+            long now = System.nanoTime();
+            delta += (now - lastTime) / ns;
+            lastTime = now;
+            while (delta >= 1) {
+                update();
+                delta--;
             }
-            line = line.substring(1);
-            switch(line.split(" ")[0]) {
-                case "clients":
-                    System.out.print("Clients: ");
-                    for (int i = 0; i < clients.size() - 1; i++) {
-                        System.out.print(clients.get(i).getName() + ", ");
-                    }
-                    System.out.println(clients.get(clients.size() - 1).getName());
-                    break;
-                case "stop":
-                    stop();
-                    break;
+            check();
+        }
+    }
+
+    public void update() {
+        Command command = new Command("STATUS");
+        for(Client client : clients) {
+            command.addField(new Field("NAME", client.getName()));
+        }
+        sendAll(Command.deserialize(command).getBytes());
+        for(Client client : clients) {
+            for(InetAddress address : responses) {
+                if(client.getAddress().equals(address)) {
+                    client.setAttempts(0);
+                }
             }
+            client.setAttempts(client.getAttempts() - 1);
+            if(client.getAttempts() >= MAX_ATTEMPTS) {
+                disconnect(client);
+            }
+        }
+    }
+
+    public void check() {
+        String line = scanner.nextLine();
+        if(line.trim().isEmpty()) return;
+        if (!line.startsWith("/")) {
+            Command message = new Command("MESSAGE");
+            message.addField(new Field("NAME", "SERVER"));
+            message.addField(new Field("MESSAGE", line));
+            sendAll(Command.deserialize(message).getBytes());
+        }
+        line = line.substring(1);
+        switch(line.split(" ")[0]) {
+            case "clients":
+                System.out.print("Clients: ");
+                for (int i = 0; i < clients.size() - 1; i++) {
+                    System.out.print(clients.get(i).getName() + ", ");
+                }
+                System.out.println(clients.get(clients.size() - 1).getName());
+                break;
+            case "stop":
+                stop();
+                break;
         }
     }
 
@@ -83,9 +120,13 @@ public class Server implements Runnable{
             assert command != null;
             if(command.getName().equals("MESSAGE")) {
                 Command message = new Command("MESSAGE");
-                message.addField(new Field("NAME", command.getField("NAME").getValue()));
                 message.addField(new Field("MESSAGE", command.getField("MESSAGE").getValue()));
-                sendAll(Command.deserialize(message).getBytes());
+                for(Client client : clients) {
+                    if (client.getAddress().equals(address)) {
+                        message.addField(new Field("NAME", client.getName()));
+                        sendAll(Command.deserialize(message).getBytes());
+                    }
+                }
             } else {
                 switch(command.getName()) {
                     case "CONNECT":
@@ -94,25 +135,33 @@ public class Server implements Runnable{
                                 break;
                             }
                         }
-                        clients.add(new Client(command.getField("NAME").getValue(), address, port));
-                        System.out.println("Client " + command.getField("NAME") + " @ " + address.getHostAddress() + ":" + port + " connected.");
+                        clients.add(new Client(address, port));
+                        System.out.println("Client @ " + address.getHostAddress() + ":" + port + " connected.");
                         break;
                     case "DISCONNECT":
                         for(Client client : clients) {
                             if(client.getAddress().equals(address)) {
-                                disconnect(client, true);
+                                disconnect(client);
                                 break;
+                            }
+                        }
+                        break;
+                    case "NAME":
+                        for(Client client : clients) {
+                            if(client.getAddress().equals(address)) {
+                                client.setName(command.getField("NAME").getValue());
+                            }
+                        }
+                        break;
+                    case "ACTIVE":
+                        for(Client client : clients) {
+                            if(client.getAddress().equals(address)) {
+                                responses.add(client.getAddress());
                             }
                         }
                         break;
                 }
             }
-        }
-    }
-
-    public void sendAll(byte[] data) {
-        for (Client client : clients) {
-            send(data, client.getAddress(), client.getPort());
         }
     }
 
@@ -125,20 +174,24 @@ public class Server implements Runnable{
         }
     }
 
+    public void sendAll(byte[] data) {
+        for (Client client : clients) {
+            send(data, client.getAddress(), client.getPort());
+        }
+    }
+
     public void stop() {
         System.out.println("Stopped Text/Server");
         for (Client client : clients) {
-            disconnect(client, true);
+            disconnect(client);
         }
         isRunning = false;
         socket.close();
     }
 
-    public void disconnect(Client client, boolean status) {
+    public void disconnect(Client client) {
         clients.remove(client);
-        String message = "Client " + client.getName() + " @ " + client.getAddress().getHostAddress() + ":" + client.getPort();
-        if(status) { message += " disconnected."; }
-        else { message += " timed out."; }
+        String message = "Client " + client.getName() + " @ " + client.getAddress().getHostAddress() + ":" + client.getPort() + " disconnected.";
         System.out.println(message);
     }
 }

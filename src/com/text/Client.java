@@ -9,13 +9,15 @@ public class Client {
     private int port;
     private int attempts = 0;
 
-    public Client(String name, InetAddress address, int port) {
-        this.name = name;
+    public Client(InetAddress address, int port) {
         this.address = address;
         this.port = port;
     }
 
     public String getName() {
+        if(name == null) {
+            return address.getHostAddress();
+        }
         return name;
     }
 

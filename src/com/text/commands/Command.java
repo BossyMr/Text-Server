@@ -42,9 +42,7 @@ public class Command {
     }
 
     public static Command serialize(String text) {
-        if(!text.startsWith("TEXT")) {
-            return null;
-        }
+        assert(text.startsWith("TEXT"));
         text = text.substring(4);
         String[] data = text.split(";");
         Command command = new Command(data[0]);

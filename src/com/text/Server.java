@@ -18,7 +18,8 @@ public class Server implements Runnable{
     private DatagramSocket socket;
 
     private Thread server, receive;
-    private boolean isRunning;
+    private boolean isRunning = false;
+    public boolean isDebug = false;
 
     public Server(int port) {
         this.port = port;
@@ -39,7 +40,6 @@ public class Server implements Runnable{
 
     public void run() {
         long lastTime = System.nanoTime();
-        long timer = System.currentTimeMillis();
         final double ns = 1000000000.0 / 60.0;
         double delta = 0;
         while (isRunning) {
@@ -48,9 +48,9 @@ public class Server implements Runnable{
             lastTime = now;
             while (delta >= 1) {
                 update();
+                check();
                 delta--;
             }
-            check();
         }
     }
 
@@ -60,17 +60,24 @@ public class Server implements Runnable{
             command.addField(new Field("NAME", client.getName()));
         }
         sendAll(Command.deserialize(command).getBytes());
-        for(Client client : clients) {
+        for(int i = 0; i < clients.size(); i++) {
+            Client client = clients.get(i);
+            client.setAttempts(client.getAttempts() + 1);
             for(InetAddress address : responses) {
                 if(client.getAddress().equals(address)) {
                     client.setAttempts(0);
+                    break;
                 }
             }
-            client.setAttempts(client.getAttempts() - 1);
+            if(client.getAttempts() > 1) {
+                System.out.println("Client: " + client.getName() + " is at: " + client.getAttempts() + " attempts.");
+            }
             if(client.getAttempts() >= MAX_ATTEMPTS) {
                 disconnect(client);
             }
         }
+        Command activity = new Command("ACTIVE");
+        sendAll(Command.deserialize(activity).getBytes());
     }
 
     public void check() {
@@ -90,6 +97,9 @@ public class Server implements Runnable{
                     System.out.print(clients.get(i).getName() + ", ");
                 }
                 System.out.println(clients.get(clients.size() - 1).getName());
+                break;
+            case "debug":
+                isDebug = !isDebug;
                 break;
             case "stop":
                 stop();
@@ -115,9 +125,10 @@ public class Server implements Runnable{
         InetAddress address = packet.getAddress();
         int port = packet.getPort();
         String text = new String(data);
+        if(isDebug) dump(packet);
         if(new String(data, 0,4).equals("TEXT")) {
             Command command = Command.serialize(text);
-            assert command != null;
+            if(isDebug) dump(command);
             if(command.getName().equals("MESSAGE")) {
                 Command message = new Command("MESSAGE");
                 message.addField(new Field("MESSAGE", command.getField("MESSAGE").getValue()));
@@ -194,4 +205,43 @@ public class Server implements Runnable{
         String message = "Client " + client.getName() + " @ " + client.getAddress().getHostAddress() + ":" + client.getPort() + " disconnected.";
         System.out.println(message);
     }
+
+    public void dump(DatagramPacket packet) {
+        byte[] data = packet.getData();
+        InetAddress address = packet.getAddress();
+        int port = packet.getPort();
+
+        System.out.println("----------------------------------------");
+        System.out.println("PACKET:");
+        System.out.println("\t" + address.getHostAddress() + ":" + port);
+        System.out.println();
+        System.out.println("\tContents:");
+        System.out.print("\t\t");
+
+        for (int i = 0; i < packet.getLength(); i++) {
+            System.out.printf("%x ", data[i]);
+            if ((i + 1) % 16 == 0)
+                System.out.print("\n\t\t");
+        }
+
+        System.out.println();
+        System.out.println("----------------------------------------");
+    }
+
+    public void dump(Command command) {
+        System.out.println("----------------------------------------");
+        System.out.println("               Command               ");
+        System.out.println("----------------------------------------");
+        System.out.println("Name: " + command.getName());
+        System.out.println("Field Count: " + command.getFields().size());
+        System.out.println();
+        for (Field field : command.getFields()) {
+            System.out.println("\tField:");
+            System.out.println("\tName: " + field.getName());
+            System.out.println("\tValue: " + field.getValue());
+            System.out.println();
+        }
+        System.out.println("----------------------------------------");
+    }
+
 }

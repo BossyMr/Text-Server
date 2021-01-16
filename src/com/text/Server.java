@@ -69,9 +69,6 @@ public class Server implements Runnable{
                     break;
                 }
             }
-            if(client.getAttempts() > 1) {
-                System.out.println("Client: " + client.getName() + " is at: " + client.getAttempts() + " attempts.");
-            }
             if(client.getAttempts() >= MAX_ATTEMPTS) {
                 disconnect(client);
             }

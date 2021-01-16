@@ -5,6 +5,8 @@ import com.text.commands.Field;
 
 import java.net.DatagramPacket;
 import java.net.InetAddress;
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Scanner;
 
 public class Console {
@@ -29,6 +31,11 @@ public class Console {
             command.addField(new Field(option[0], option[1]));
         }
         return command;
+    }
+
+    public static void log(String string) {
+        DateTimeFormatter format = DateTimeFormatter.ofPattern("HH:mm:ss");
+        System.out.println(LocalTime.now().format(format) + " [" + Thread.currentThread().getName() + "]: " + string);
     }
 
     public static void dump(DatagramPacket packet) {

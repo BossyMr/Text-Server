@@ -2,10 +2,11 @@ package com.text;
 
 public class Main {
 
-    private int port;
-    private Server server;
+    private final int port;
+    private final Server server;
 
     public Main(int port) {
+        System.out.println("Launched: Text/Server");
         this.port = port;
         server = new Server(port);
     }

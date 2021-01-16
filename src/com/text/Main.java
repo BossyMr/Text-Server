@@ -2,12 +2,11 @@ package com.text;
 
 public class Main {
 
-    private final String version = "v0.1.1-alpha";
     private final int port;
     private final Server server;
 
     public Main(int port) {
-        System.out.println("Launched: Text/Server " + version);
+        System.out.println("Launched: Text/Server");
         this.port = port;
         server = new Server(port);
     }

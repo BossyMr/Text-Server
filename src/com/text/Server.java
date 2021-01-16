@@ -34,7 +34,7 @@ public class Server implements Runnable{
 
         server = new Thread(this, "Server: " + port);
         server.start();
-        receive = new Thread(this::receive, "Server/Listen");
+        receive = new Thread(this::receive, "Server/Receive");
         receive.start();
     }
 
@@ -90,10 +90,10 @@ public class Server implements Runnable{
         switch(line.split(" ")[0]) {
             case "clients":
                 System.out.print("Clients: ");
-                for (int i = 0; i < clients.size() - 1; i++) {
+                for (int i = 0; i < clients.size(); i++) {
                     System.out.print(clients.get(i).getName() + ", ");
                 }
-                System.out.println(clients.get(clients.size() - 1).getName());
+                System.out.println();
                 break;
             case "debug":
                 isDebug = !isDebug;
@@ -133,6 +133,8 @@ public class Server implements Runnable{
                     if (client.getAddress().equals(address)) {
                         message.addField(new Field("NAME", client.getName()));
                         sendAll(Command.deserialize(message).getBytes());
+                        String output = client.getName() + ": " + command.getField("MESSAGE").getValue();
+                        System.out.println(output);
                     }
                 }
             } else {

@@ -1,18 +1,25 @@
 package com.text;
 
-import com.text.commands.*;
+import com.text.commands.Command;
+import com.text.commands.Field;
 
 import java.io.IOException;
-import java.net.*;
-import java.util.*;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
+import java.net.SocketException;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
 
 public class Server implements Runnable{
-    Scanner scanner = new Scanner(System.in);
 
-    private final List<Client> clients = new ArrayList<>();
+    public final List<Client> clients = new ArrayList<>();
 
     private final List<InetAddress> responses = new ArrayList<>();
-    private final int MAX_ATTEMPTS = 5;
+    private final int MAX_ATTEMPTS = 60;
+
+    private Console console;
 
     private final int port;
     private DatagramSocket socket;
@@ -22,6 +29,7 @@ public class Server implements Runnable{
     public boolean isDebug = false;
 
     public Server(int port) {
+        console = new Console();
         this.port = port;
         try {
             socket = new DatagramSocket(this.port);
@@ -48,46 +56,43 @@ public class Server implements Runnable{
             lastTime = now;
             while (delta >= 1) {
                 update();
-                check();
                 delta--;
             }
+            input(console.update());
         }
     }
 
     public void update() {
-        Command command = new Command("STATUS");
-        for(Client client : clients) {
-            command.addField(new Field("NAME", client.getName()));
-        }
-        sendAll(Command.deserialize(command).getBytes());
-        for(int i = 0; i < clients.size(); i++) {
-            Client client = clients.get(i);
+        Iterator<Client> clientIterator = clients.iterator();
+        while(clientIterator.hasNext()) {
+            Client client = clientIterator.next();
             client.setAttempts(client.getAttempts() + 1);
-            for(InetAddress address : responses) {
-                if(client.getAddress().equals(address)) {
+            for(int i = 0; i < responses.size(); i++) {
+                if(client.getAddress().equals(responses.get(i))) {
                     client.setAttempts(0);
                     break;
                 }
             }
             if(client.getAttempts() >= MAX_ATTEMPTS) {
-                disconnect(client);
+                clientIterator.remove();
+                String message = "Client " + client.getName() + " @ " + client.getAddress().getHostAddress() + ":" + client.getPort() + " timed out.";
+                System.out.println(message);
             }
         }
-        Command activity = new Command("ACTIVE");
-        sendAll(Command.deserialize(activity).getBytes());
+        responses.clear();
+        Command command = new Command("ACTIVE");
+        sendAll(Command.deserialize(command).getBytes());
     }
 
-    public void check() {
-        String line = scanner.nextLine();
-        if(line.trim().isEmpty()) return;
-        if (!line.startsWith("/")) {
-            Command message = new Command("MESSAGE");
-            message.addField(new Field("NAME", "SERVER"));
-            message.addField(new Field("MESSAGE", line));
-            sendAll(Command.deserialize(message).getBytes());
-        }
-        line = line.substring(1);
-        switch(line.split(" ")[0]) {
+    public void input(Command command) {
+        if(isDebug) Console.dump(command);
+        switch(command.getName()) {
+            case "message":
+                Command message = new Command("MESSAGE");
+                message.addField(new Field("NAME", command.getField("n").getValue()));
+                message.addField(new Field("MESSAGE", command.getField("VALUE").getValue()));
+                sendAll(Command.deserialize(message).getBytes());
+                break;
             case "clients":
                 System.out.print("Clients: ");
                 for (int i = 0; i < clients.size(); i++) {
@@ -122,10 +127,10 @@ public class Server implements Runnable{
         InetAddress address = packet.getAddress();
         int port = packet.getPort();
         String text = new String(data);
-        if(isDebug) dump(packet);
+        if(isDebug) Console.dump(packet);
         if(new String(data, 0,4).equals("TEXT")) {
             Command command = Command.serialize(text);
-            if(isDebug) dump(command);
+            if(isDebug) Console.dump(command);
             if(command.getName().equals("MESSAGE")) {
                 Command message = new Command("MESSAGE");
                 message.addField(new Field("MESSAGE", command.getField("MESSAGE").getValue()));
@@ -204,43 +209,4 @@ public class Server implements Runnable{
         String message = "Client " + client.getName() + " @ " + client.getAddress().getHostAddress() + ":" + client.getPort() + " disconnected.";
         System.out.println(message);
     }
-
-    public void dump(DatagramPacket packet) {
-        byte[] data = packet.getData();
-        InetAddress address = packet.getAddress();
-        int port = packet.getPort();
-
-        System.out.println("----------------------------------------");
-        System.out.println("PACKET:");
-        System.out.println("\t" + address.getHostAddress() + ":" + port);
-        System.out.println();
-        System.out.println("\tContents:");
-        System.out.print("\t\t");
-
-        for (int i = 0; i < packet.getLength(); i++) {
-            System.out.printf("%x ", data[i]);
-            if ((i + 1) % 16 == 0)
-                System.out.print("\n\t\t");
-        }
-
-        System.out.println();
-        System.out.println("----------------------------------------");
-    }
-
-    public void dump(Command command) {
-        System.out.println("----------------------------------------");
-        System.out.println("               Command               ");
-        System.out.println("----------------------------------------");
-        System.out.println("Name: " + command.getName());
-        System.out.println("Field Count: " + command.getFields().size());
-        System.out.println();
-        for (Field field : command.getFields()) {
-            System.out.println("\tField:");
-            System.out.println("\tName: " + field.getName());
-            System.out.println("\tValue: " + field.getValue());
-            System.out.println();
-        }
-        System.out.println("----------------------------------------");
-    }
-
 }

@@ -10,16 +10,15 @@ import java.util.List;
 import java.util.Scanner;
 
 public class Server implements Runnable{
-    Scanner scanner = new Scanner(System.in);
 
     public final List<Client> clients = new ArrayList<>();
     private final List<Client> responses = new ArrayList<>();
-    private final int MAX_ATTEMPTS = 10;
+    private final int MAX_ATTEMPTS = 120;
 
     private final int port;
     private DatagramSocket socket;
 
-    private Thread server, receive, console;
+    private Thread server, receive;
     private boolean isRunning = false;
     public boolean isDebug = false;
 
@@ -40,15 +39,11 @@ public class Server implements Runnable{
         receive = new Thread(this::receive, "Server/Receive");
         receive.start();
         Console.log("Started Text/Receive");
-
-        console = new Thread(this::console, "Server/Console");
-        console.start();
-        Console.log("Started Text/Console");
     }
 
     public void run() {
         long lastTime = System.nanoTime();
-        final double ns = 1000000000.0 / 1.0;
+        final double ns = 1000000000.0 / 20.0;
         double delta = 0;
         while (isRunning) {
             long now = System.nanoTime();
@@ -80,36 +75,6 @@ public class Server implements Runnable{
         send(command);
     }
 
-    public void console() {
-        while(isRunning) {
-            if(scanner.hasNextLine()) {
-                String line = scanner.nextLine();
-                Command command = new Command(line.split(" ")[0]);
-                String value = line.substring(line.split(" ")[0].length());
-                command.addField(new Field("VALUE", value.split(" -")[0]));
-                for (int i = 1; i < line.split(" -").length; i++) {
-                    if (!(i + 1 < line.split(" -").length)) {
-                        String[] option = line.split(" -")[i].split(" ");
-                        String lastOption = String.join(" ", option).substring(option[0].length());
-                        command.addField(new Field(option[0], lastOption));
-                        break;
-                    }
-                    String[] option = line.split(" -| -")[i].split(" ");
-                    command.addField(new Field(option[0], option[1]));
-                }
-                InetAddress localHost = null;
-                try {
-                    localHost = InetAddress.getLocalHost();
-                } catch (UnknownHostException e) {
-                    e.printStackTrace();
-                }
-                Client client = new Client(localHost, port);
-                client.setName("CONSOLE");
-                process(command, client);
-            }
-        }
-    }
-
     public void receive() {
         while(isRunning) {
             byte[] data = new byte[1024];
@@ -128,6 +93,7 @@ public class Server implements Runnable{
         InetAddress address = packet.getAddress();
         int port = packet.getPort();
         String text = new String(data);
+        if(isDebug) Console.dump(packet);
         if(new String(data, 0,4).equals("TEXT")) {
             Command command = Command.serialize(text);
             for(Client client : clients) {
@@ -159,12 +125,12 @@ public class Server implements Runnable{
                 break;
             case "MESSAGE":
                 output = new Command("MESSAGE");
-                Field message = new Field("MESSAGE", command.getField("MESSAGE").getValue());
+                Field message = new Field("VALUE", command.getField("VALUE").getValue());
                 output.addField(message);
                 Field name = new Field("NAME", client.getName());
                 output.addField(name);
                 send(output);
-                Console.log(client.getName() + " > " + command.getField("MESSAGE").getValue());
+                Console.log(client.getName() + " > " + command.getField("VALUE").getValue());
                 break;
             case "NAME":
                 client.setName(command.getField("NAME").getValue());

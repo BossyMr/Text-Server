@@ -6,7 +6,6 @@ public class Main {
     private final Server server;
 
     public Main(int port) {
-        System.out.println("Launched: Text/Server");
         this.port = port;
         server = new Server(port);
     }

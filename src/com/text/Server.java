@@ -71,7 +71,7 @@ public class Server implements Runnable{
             }
         }
         responses.clear();
-        Command command = new Command("ACTIVE");
+        Command command = new Command("active");
         send(command);
     }
 
@@ -93,7 +93,6 @@ public class Server implements Runnable{
         InetAddress address = packet.getAddress();
         int port = packet.getPort();
         String text = new String(data);
-        if(isDebug) Console.dump(packet);
         if(new String(data, 0,4).equals("TEXT")) {
             Command command = Command.serialize(text);
             for(Client client : clients) {
@@ -103,7 +102,7 @@ public class Server implements Runnable{
                 }
             }
             switch(command.getName()) {
-                case "CONNECT":
+                case "connect":
                     clients.add(new Client(address, port));
                     Console.log("Client @ " + address.getHostAddress() + ":" + port + " connected.");
                     break;
@@ -113,29 +112,27 @@ public class Server implements Runnable{
 
     public void process(Command command, Client client) {
         Command output;
-        if(isDebug) Console.dump(command);
+        if(isDebug && !command.getName().equals("active")) Console.dump(command);
         switch(command.getName()) {
-            case "ACTIVE":
+            case "active":
                 if(!responses.contains(client)) {
                     responses.add(client);
                 }
                 break;
-            case "DISCONNECT":
+            case "disconnect":
                 disconnect(client);
                 break;
-            case "MESSAGE":
-                output = new Command("MESSAGE");
-                Field message = new Field("VALUE", command.getField("VALUE").getValue());
-                output.addField(message);
-                Field name = new Field("NAME", client.getName());
-                output.addField(name);
+            case "message":
+                output = new Command("message");
+                Field value = new Field("value", client.getName() + " > " + command.getField("value").getValue());
+                output.addField(value);
                 send(output);
-                Console.log(client.getName() + " > " + command.getField("VALUE").getValue());
+                Console.log(client.getName() + " > " + command.getField("value").getValue());
                 break;
-            case "NAME":
-                client.setName(command.getField("NAME").getValue());
+            case "name":
+                client.setName(command.getField("value").getValue());
                 break;
-            case "STOP":
+            case "stop":
                 stop();
                 break;
         }
@@ -162,8 +159,8 @@ public class Server implements Runnable{
 
     public void stop() {
         Console.log("Stopping Text/Server");
-        for (Client client : clients) {
-            disconnect(client);
+        for (int i = 0; i < clients.size(); i++) {
+            disconnect(clients.get(i));
         }
         isRunning = false;
         socket.close();

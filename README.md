@@ -1,14 +1,15 @@
 # Text-Server
 
-### Message
-Message to Server: MESSAGE;MESSAGE,[MESSAGE];
+This is a self-hosted Terminal-based text message application.
 
-Message to Client: MESSAGE;MESSAGE,[MESSAGE];NAME,[NAME];
+## Download & Installation
 
-Connection: CONNECT;
+Text: `git clone https://github.com/BossyMr/Text`
 
-Disconnect: DISCONNECT;
+Text/Server: `git clone https://github.com/BossyMr/Text-Server`
 
-Change Name: NAME;NAME,[NAME];
+## Usage
 
-Active: ACTIVE;
+Text: `java -jar Text.jar [IP] [PORT]`
+
+Text/Server: `java -jar Text-Server.jar [PORT]`

@@ -4,10 +4,12 @@ import com.text.commands.Command;
 import com.text.commands.Field;
 
 import java.io.IOException;
-import java.net.*;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
+import java.net.SocketException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Scanner;
 
 public class Server implements Runnable{
 
@@ -20,7 +22,6 @@ public class Server implements Runnable{
 
     private Thread server, receive;
     private boolean isRunning = false;
-    public boolean isDebug = false;
 
     public Server(int port) {
         this.port = port;
@@ -71,8 +72,7 @@ public class Server implements Runnable{
             }
         }
         responses.clear();
-        Command command = new Command("active");
-        send(command);
+        send(new Command("active"));
     }
 
     public void receive() {
@@ -105,28 +105,34 @@ public class Server implements Runnable{
                 case "connect":
                     clients.add(new Client(address, port));
                     Console.log("Client @ " + address.getHostAddress() + ":" + port + " connected.");
+                    send(message("Client @ " + address.getHostAddress() + ":" + port + " connected."));
                     break;
             }
         }
     }
 
     public void process(Command command, Client client) {
-        Command output;
-        if(isDebug && !command.getName().equals("active")) Console.dump(command);
         switch(command.getName()) {
             case "active":
                 if(!responses.contains(client)) {
                     responses.add(client);
                 }
                 break;
+            case "clients":
+                String message = null;
+                if(clients.size() > 0) {
+                    message = "Clients: ";
+                    for(int i = 0; i < clients.size(); i++) {
+                        message += clients.get(i).getName() + ", ";
+                    }
+                }
+                send(message(message), client);
+                break;
             case "disconnect":
                 disconnect(client);
                 break;
             case "message":
-                output = new Command("message");
-                Field value = new Field("value", client.getName() + " > " + command.getField("value").getValue());
-                output.addField(value);
-                send(output);
+                send(message(client.getName() + " > " + command.getField("value").getValue()));
                 Console.log(client.getName() + " > " + command.getField("value").getValue());
                 break;
             case "name":
@@ -157,6 +163,13 @@ public class Server implements Runnable{
         }
     }
 
+    public Command message(String message) {
+        Command output = new Command("message");
+        Field value = new Field("value", message);
+        output.addField(value);
+        return output;
+    }
+
     public void stop() {
         Console.log("Stopping Text/Server");
         for (int i = 0; i < clients.size(); i++) {
@@ -169,5 +182,6 @@ public class Server implements Runnable{
     public void disconnect(Client client) {
         clients.remove(client);
         Console.log("Client " + client.getName() + " @ " + client.getAddress().getHostAddress() + ":" + client.getPort() + " disconnected.");
+        send(message("Client " + client.getName() + " @ " + client.getAddress().getHostAddress() + ":" + client.getPort() + " disconnected."));
     }
 }

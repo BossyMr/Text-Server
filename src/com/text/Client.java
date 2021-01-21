@@ -10,15 +10,15 @@ public class Client {
     private int attempts = 0;
 
     public Client(InetAddress address, int port) {
-        this.address = address;
-        this.port = port;
+        setAddress(address);
+        setPort(port);
     }
 
     public String getName() {
-        if(name == null) {
-            return address.getHostAddress();
+        if(name != null && !name.isEmpty()) {
+            return name;
         }
-        return name;
+        return address.getHostAddress();
     }
 
     public void setName(String name) {

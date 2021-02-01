@@ -7,7 +7,8 @@ public class Main {
 
     public Main(int port) {
         this.port = port;
-        server = new Server(port);
+        server = new Server(this.port);
+        server.start();
     }
 
     public static void main(String[] args) {
